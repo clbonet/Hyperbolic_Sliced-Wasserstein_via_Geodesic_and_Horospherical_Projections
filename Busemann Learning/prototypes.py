@@ -14,7 +14,7 @@ import torch.optim as optim
 # When prototype dimension >=3, the goal is to find the largest cosine similarity between pairs of prototypes and minimize it.
 def prototype_loss(prototype):
     # Dot product of normalized prototypes is cosine similarity.
-    product = torch.matmul(prototype, prototypes.t()) + 1
+    product = torch.matmul(prototype, prototype.t()) + 1
     # Remove diagnonal from loss.
     product -= 2. * torch.diag(torch.diag(product))
     # Minimize maximum cosine similarity.

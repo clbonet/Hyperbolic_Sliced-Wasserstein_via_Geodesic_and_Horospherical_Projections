@@ -19,6 +19,7 @@ import torch.distributions as D
 #from PIL import Image
 #from torchvision import datasets, transforms
 from tqdm.auto import trange
+from torch.utils.tensorboard import SummaryWriter ## Tensorboard
 
 import resnet
 import resnet_cub
@@ -34,6 +35,7 @@ sys.path.append("../lib")
 from utils_hyperbolic import poincare_to_lorentz, lorentz_to_poincare, dist_poincare2
 from hhsw import horo_hyper_sliced_wasserstein_poincare
 from hsw import hyper_sliced_wasserstein
+from sw import sliced_wasserstein
 # from distributions import sampleWrappedNormal
 
 warnings.filterwarnings('ignore')
@@ -43,6 +45,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--loss", type=str, default="hhsw_mixt", help="Which loss to use")
 parser.add_argument("--dataset", type=str, default="cifar10", help="Which dataset to use")
 parser.add_argument("--dims", type=int, default=2, help="Dimension B^d")
+parser.add_argument("--batch_size", type=int, default=128, help="Batch size")
 # parser.add_argument("--num_classes", type=int, default=10, help="Number of classes")
 parser.add_argument("--lambd", type=float, default=1, help="Lambda")
 parser.add_argument("--mult", type=float, default=0.75, help="Penalty term")
@@ -67,7 +70,7 @@ torch.backends.cudnn.benchmark = False
 
 # Fetching the device that will be used throughout this notebook
 device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
-print("Using device", device)
+print("Using device", device, flush=True)
 
 
 # HYPERPARAMETER
@@ -82,13 +85,14 @@ elif args.dataset == "cub":
 ## dimension of the learned prototypes (d in the equation)
 dims = args.dims
 
-prototypes = get_prototypes(dims, num_classes)
+# prototypes = get_prototypes(dims, num_classes)
+prototypes = torch.from_numpy(np.load("./prototypes/prototypes-"+str(args.dims)+"d-"+str(num_classes)+"c.npy")).float()
 
 
 
 ### Load data
 basedir = "."
-batch_size = 128
+batch_size = args.batch_size # 128
 kwargs = {"num_workers": 32, "pin_memory":True}
 
 if args.dataset == "cifar10":
@@ -119,15 +123,20 @@ elif args.dataset == "cub":
 
 prop = args.prop
 
-n_mixture = batch_size
+# n_mixture = batch_size
 
-# if args.dataset == "cifar10":
-#     n_mixture = batch_size
-# elif args.dataset == "cifar100" or args.dataset == "cub":
-#     n_mixture = 500
+if args.dataset == "cifar10" or args.dataset == "cifar100":
+    n_mixture = batch_size
+elif args.dataset == "cub":
+    n_mixture = 128 # batch_size # 256
 
 
 if __name__=="__main__":
+    if args.loss == "hhsw_mixt" or args.loss == "hsw_mixt" or args.loss == "swp_mixt" or args.loss == "swl_mixt":
+        writer = SummaryWriter('runs/classif_busemann_'+args.dataset+"_"+args.loss+"_bs_"+str(batch_size)+"_lamd_"+args.lambd + "_prop_" + args.prop+"_var_"+args.scale_var)
+    else:
+        writer = SummaryWriter('runs/classif_busemann_'+args.dataset+"_"+args.loss+"_bs_"+str(batch_size))    
+    
     if args.dataset == "cifar10" or args.dataset == "cifar100":
         model = resnet.ResNet(32, dims, 1, prototypes.float())
     elif args.dataset == "cub":
@@ -163,7 +172,7 @@ if __name__=="__main__":
         
     if args.loss == "pebuse":
         f_loss = PeBusePenalty(dims, mult)
-    elif args.loss == "hhsw_mixt" or args.loss == "hsw_mixt":
+    elif args.loss == "hhsw_mixt" or args.loss == "hsw_mixt" or args.loss =="swp_mixt" or args.loss == "swl_mixt":
         f_loss = Busemann(dims, mult)
 
     for i in pbar:
@@ -175,12 +184,15 @@ if __name__=="__main__":
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         avg_loss = 0
         sum_loss = 0
+        sum_sw = 0
+        sum_bp = 0
         count = 0
         acc = 0
-        model.train()
+        model.train()        
+        
         for bidx, (data, target) in enumerate(trainloader):
             target_tmp = target.to(device)
-            target = model.polars[target]
+            target = model.polars[target] 
 
             data = torch.autograd.Variable(data).to(device)
             target = torch.autograd.Variable(target).to(device)
@@ -196,25 +208,43 @@ if __name__=="__main__":
             elif args.loss == "hsw_mixt":
                 x0 = gmm.sample((n_mixture,))
                 sw = hyper_sliced_wasserstein(poincare_to_lorentz(output_exp_map), x0, 1000, device=device, p=2)
+            elif args.loss == "swp_mixt":
+                x0 = lorentz_to_poincare(gmm.sample((n_mixture,))).type(torch.float32)
+                sw = sliced_wasserstein(output_exp_map, x0, 1000, device=device, p=2)
+            elif args.loss == "swl_mixt":
+                x0 = gmm.sample((n_mixture,)).type(torch.float32)
+                sw = sliced_wasserstein(poincare_to_lorentz(output_exp_map), x0, 1000, device=device, p=2)
+            else:
+                sw = torch.tensor([0], device=device)
             
-            if args.loss == "hhsw_mixt" or args.loss == "hsw_mixt":
+            if args.loss == "hhsw_mixt" or args.loss == "hsw_mixt" or args.loss =="swp_mixt" or args.loss == "swl_mixt":
                 loss_func = bp + lambd * sw
             else:
                 loss_func = bp
+                
 
             optimizer.zero_grad()
             loss_func.backward()
             optimizer.step()
 
             sum_loss += loss_func.item()
+            sum_sw += sw.item()
+            sum_bp += bp.item()
             count += 1.
 
             output = model.predict(output_exp_map).float()
             pred = output.max(1, keepdim=True)[1]
             acc += pred.eq(target_tmp.view_as(pred)).sum().item()
-
+            
         avg_loss = sum_loss / float(len(trainloader.dataset))
         avg_acc = acc / float(len(trainloader.dataset))
+        avg_sw = sum_sw / float(len(trainloader.dataset))
+        avg_bp = sum_bp / float(len(trainloader.dataset))
+        
+        writer.add_scalar("Loss", avg_loss, i)
+        writer.add_scalar("Training Accuracy", avg_acc, i)
+        writer.add_scalar("SW", avg_sw, i)
+        writer.add_scalar("Busemann", avg_bp, i)
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         if (i % 10 == 0 or i == epochs - 1):
@@ -243,8 +273,14 @@ if __name__=="__main__":
                     elif args.loss == "hsw_mixt":
                         x0 = gmm.sample((data.shape[0],))
                         sw = hyper_sliced_wasserstein(poincare_to_lorentz(output_val_exp_map), x0, 1000, device=device, p=2)
+                    elif args.loss == "swp_mixt":
+                        x0 = lorentz_to_poincare(gmm.sample((data.shape[0],))).type(torch.float32)
+                        sw = sliced_wasserstein(output_val_exp_map, x0, 1000, device=device, p=2)
+                    elif args.loss == "swl_mixt":
+                        x0 = gmm.sample((data.shape[0],)).type(torch.float32)
+                        sw = sliced_wasserstein(poincare_to_lorentz(output_val_exp_map), x0, 1000, device=device, p=2)
                         
-                    if args.loss == "hhsw_mixt" or args.loss == "hsw_mixt":
+                    if args.loss == "hhsw_mixt" or args.loss == "hsw_mixt" or args.loss == "swp_mixt" or args.loss == "swl_mixt":
                         valid_loss += (lambd*sw+bp).item()
                     else:
                         valid_loss += bp.item()
@@ -259,9 +295,16 @@ if __name__=="__main__":
             print('Training Loss:' + str(avg_loss)+' , Training Accuracy: '+str(avg_acc))
             print('Val Loss:' + str(valid_avg_loss)+' , Val Accuracy: '+str(valid_avg_acc), flush=True) 
             
+            writer.add_scalar("Validation Loss", valid_avg_loss, i)
+            writer.add_scalar("Validation Accuracy", valid_avg_acc, i)
+            writer.flush()
+
+
             
-    if args.loss == "hhsw_mixt" or args.loss == "hsw_mixt":
-        torch.save(model.state_dict(), "./weights/resnet_"+args.loss+"_"+args.dataset+"_"+str(args.dims)+"_"+str(args.prop)+".model")
+            
+    if args.loss == "hhsw_mixt" or args.loss == "hsw_mixt" or args.loss=="swp_mixt" or args.loss=="swl_mixt":
+        #torch.save(model.state_dict(), "./weights/resnet_"+args.loss+"_"+args.dataset+"_"+str(args.dims)+"_"+str(args.prop)+".model")
+        torch.save(model.state_dict(), "./weights/resnet_"++args.dataset+"_"+args.loss+"_bs_"+str(batch_size)+"_"+args.dim+"_lamd_"+args.lambd + "_prop_" + args.prop+"_var_"+args.scale_var+".model")
     else:
-        torch.save(model.state_dict(), "./weights/resnet_"+args.loss+"_"+args.dataset+"_"+str(args.dims)+"_"+str(args.mult)+".model")
+        torch.save(model.state_dict(), "./weights/resnet_"+args.dataset+"_"+args.loss+"_bs_"+str(batch_size)+"_"+str(args.dims)+"_"+str(args.mult)+".model")
 
