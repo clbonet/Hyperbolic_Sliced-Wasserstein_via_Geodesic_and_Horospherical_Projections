@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from utils_hyperbolic import projection
+from utils_hyperbolic import projection, minkowski_ip
 
 
 def emd1D(u_values, v_values, u_weights=None, v_weights=None,p=1, require_sort=True):
@@ -60,8 +60,11 @@ def sliced_cost(Xs, Xt, v, u_weights=None, v_weights=None, p=1):
     x0[0,0] = 1
         
     ## Projection geodesic
-    Xps_geod = projection(Xs, x0, v)
-    Xpt_geod = projection(Xt, x0, v)
+    #Xps_geod = projection(Xs, x0, v)
+    #Xpt_geod = projection(Xt, x0, v)
+    
+    #Xps = torch.arcsinh(torch.sum(Xps_geod[:,None]*v[None], axis=-1)).reshape(-1,n_proj) 
+    #Xpt = torch.arcsinh(torch.sum(Xpt_geod[:,None]*v[None], axis=-1)).reshape(-1,n_proj) 
 
     ## Get coordinates on R
     # Xps = torch.sign(torch.sum(Xps_geod[:,None]*v[None], axis=-1)).reshape(-1, n_proj) \
@@ -69,8 +72,16 @@ def sliced_cost(Xs, Xt, v, u_weights=None, v_weights=None, p=1):
     # Xpt = torch.sign(torch.sum(Xpt_geod[:,None]*v[None], axis=-1)).reshape(-1, n_proj) \
     #        * torch.arccosh(torch.clamp(-minkowski_ip(Xpt_geod.reshape(-1, d), x0), min=1+1e-5)).reshape(-1, n_proj)
 
-    Xps = torch.arcsinh(torch.sum(Xps_geod[:,None]*v[None], axis=-1)).reshape(-1,n_proj) 
-    Xpt = torch.arcsinh(torch.sum(Xpt_geod[:,None]*v[None], axis=-1)).reshape(-1,n_proj)     
+    
+    
+    ip_x0_Xs = minkowski_ip(x0, Xs)
+    ip_v_Xs = minkowski_ip(v, Xs)
+    
+    ip_x0_Xt = minkowski_ip(x0, Xt)
+    ip_v_Xt = minkowski_ip(v, Xt)
+    
+    Xps = torch.arctanh(-ip_v_Xs/ip_x0_Xs).reshape(-1, n_proj)
+    Xpt = torch.arctanh(-ip_v_Xt/ip_x0_Xt).reshape(-1, n_proj)
     
     return torch.mean(emd1D(Xps.T,Xpt.T,
                        u_weights=u_weights,

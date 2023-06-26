@@ -14,10 +14,9 @@ python train_busemann.py --dataset "cifar10" --loss "hhsw_mixt" --dims 4 --lambd
 python train_busemann.py --dataset "cifar100" --loss "hsw_mixt" --dims 3 --lambd 1 --scale_var 0.1 --prop 0.75
 python train_busemann.py --dataset "cifar100" --loss "hsw_mixt" --dims 5 --lambd 1 --scale_var 0.1 --prop 0.75
 python train_busemann.py --dataset "cifar100" --loss "hsw_mixt" --dims 10 --lambd 1 --scale_var 0.1 --prop 0.75
-python train_busemann.py --dataset "cifar100" --loss "hsw_mixt" --dims 50 --lambd 1 --scale_var 0.1 --prop 0.75
 
 
 python train_busemann.py --dataset "cifar100" --loss "hhsw_mixt" --dims 3 --lambd 1 --scale_var 0.1 --prop 0.75
 python train_busemann.py --dataset "cifar100" --loss "hhsw_mixt" --dims 5 --lambd 1 --scale_var 0.1 --prop 0.75
 python train_busemann.py --dataset "cifar100" --loss "hhsw_mixt" --dims 10 --lambd 1 --scale_var 0.1 --prop 0.75
-python train_busemann.py --dataset "cifar100" --loss "hhsw_mixt" --dims 50 --lambd 1 --scale_var 0.01 --prop 0.1
+
