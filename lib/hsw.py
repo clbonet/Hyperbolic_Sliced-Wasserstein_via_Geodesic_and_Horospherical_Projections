@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from utils_hyperbolic import projection, minkowski_ip
+from utils_hyperbolic import projection, minkowski_ip, minkowski_ip2
 
 
 def emd1D(u_values, v_values, u_weights=None, v_weights=None,p=1, require_sort=True):
@@ -75,13 +75,13 @@ def sliced_cost(Xs, Xt, v, u_weights=None, v_weights=None, p=1):
     
     
     ip_x0_Xs = minkowski_ip(x0, Xs)
-    ip_v_Xs = minkowski_ip(v, Xs)
+    ip_v_Xs = minkowski_ip2(v, Xs)
     
     ip_x0_Xt = minkowski_ip(x0, Xt)
-    ip_v_Xt = minkowski_ip(v, Xt)
+    ip_v_Xt = minkowski_ip2(v, Xt)
     
-    Xps = torch.arctanh(-ip_v_Xs/ip_x0_Xs).reshape(-1, n_proj)
-    Xpt = torch.arctanh(-ip_v_Xt/ip_x0_Xt).reshape(-1, n_proj)
+    Xps = torch.arctanh(-ip_v_Xs/ip_x0_Xs)
+    Xpt = torch.arctanh(-ip_v_Xt/ip_x0_Xt)
     
     return torch.mean(emd1D(Xps.T,Xpt.T,
                        u_weights=u_weights,
