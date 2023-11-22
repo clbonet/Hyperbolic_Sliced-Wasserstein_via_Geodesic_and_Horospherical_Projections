@@ -9,11 +9,13 @@ It has been shown beneficial for many types of data which present an underlying 
 ## Citation
 
 ```
-@article{bonet2022hyperbolic,
-    title={Hyperbolic Sliced-Wasserstein via Geodesic and Horospherical Projections},
-    author={Clément Bonet and Laetital Chapel and Lucas Drumetz and Nicolas Courty},
-    year={2022},
-    journal={arXiv preprint arXiv:2211.10066}
+@inproceedings{bonet2023hyperbolic,
+  title={Hyperbolic sliced-wasserstein via geodesic and horospherical projections},
+  author={Bonet, Cl{\'e}ment and Chapel, Laetitia and Drumetz, Lucas and Courty, Nicolas},
+  booktitle={Topological, Algebraic and Geometric Learning Workshops 2023},
+  pages={334--370},
+  year={2023},
+  organization={PMLR}
 }
 ```
 
