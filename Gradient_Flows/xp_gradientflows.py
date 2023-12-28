@@ -27,7 +27,7 @@ parser.add_argument("--type_target", type=str, default="wnd", help="wnd or mwnd"
 parser.add_argument("--target", type=str, default="center", help="Which target to use")
 parser.add_argument("--pbar", action="store_true", help="If yes, plot pbar")
 parser.add_argument("--ntry", type=int, default=5, help="number of restart")
-parser.add_argument("--lr", type=int, default=1, help="Learning rate")
+parser.add_argument("--lr", type=float, default=1, help="Learning rate")
 parser.add_argument("--n_epochs", type=int, default=10001, help="Number of epochs")
 args = parser.parse_args()
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
             
             
         train_dl = DataLoader(X_target, batch_size=500, shuffle=True)
-        dataiter = iter(cycle(train_dl)<)
+        dataiter = iter(cycle(train_dl))
         
         x0 = sampleWrappedNormal(mu0, Sigma0, 500)
         
