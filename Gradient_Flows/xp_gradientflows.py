@@ -108,7 +108,7 @@ if __name__ == "__main__":
         else:
             bar = range(n_epochs)
             
-        for e in range(n_epochs):
+        for e in bar:
             X_target = next(dataiter).type(torch.float64).to(device)
             
             hsw = hyper_sliced_wasserstein(x_hsw, X_target, num_projections, device, p=2)
